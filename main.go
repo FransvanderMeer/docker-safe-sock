@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"flag"
@@ -46,6 +45,7 @@ func main() {
 			},
 		},
 		ModifyResponse: modifyResponse,
+		FlushInterval:  100 * time.Millisecond,
 	}
 
 	handler := authMiddleware(proxy)
@@ -254,11 +254,19 @@ func modifyResponse(resp *http.Response) error {
 			defer resp.Body.Close()
 			defer pw.Close()
 
-			scanner := bufio.NewScanner(resp.Body)
-			for scanner.Scan() {
-				line := scanner.Bytes()
-				if shouldKeepEvent(line) {
-					if _, err := pw.Write(append(line, '\n')); err != nil {
+			decoder := json.NewDecoder(resp.Body)
+			for {
+				var raw json.RawMessage
+				if err := decoder.Decode(&raw); err != nil {
+					if err != io.EOF {
+						log.Printf("Error decoding event stream: %v", err)
+					}
+					return
+				}
+
+				if shouldKeepEvent(raw) {
+					log.Printf("DEBUG: Writing event to downstream: %s", string(raw))
+					if _, err := pw.Write(append(raw, '\n')); err != nil {
 						return // Downstream closed
 					}
 				}
@@ -305,22 +313,29 @@ func filterInspectResponse(resp *http.Response) error {
 // shouldKeepEvent Unmarshals the minimal check to decide if we keep the event
 func shouldKeepEvent(line []byte) bool {
 	var event struct {
-		Type   string `json:"type"`
-		Action string `json:"action"`
+		Type   string `json:"Type"`
+		Action string `json:"Action"`
+		Status string `json:"status"` // Some versions use status for Action
 	}
 	if err := json.Unmarshal(line, &event); err != nil {
 		return false // Drop malformed json
 	}
 
+	// Normalise status to action if action is empty
+	if event.Action == "" && event.Status != "" {
+		event.Action = event.Status
+	}
+
+	keep := false
 	// Check for container events
 	if event.Type == "container" {
 		switch event.Action {
-		case "start", "die", "pause", "unpause", "create", "destroy", "rename", "update":
-			return true
+		case "start", "die", "stop", "kill", "pause", "unpause", "create", "destroy", "rename", "update":
+			keep = true
 		}
 		// health_status: healthy/unhealthy is a colon separated action
 		if strings.HasPrefix(event.Action, "health_status") {
-			return true
+			keep = true
 		}
 	}
 
@@ -328,11 +343,16 @@ func shouldKeepEvent(line []byte) bool {
 	if event.Type == "network" {
 		switch event.Action {
 		case "create", "destroy", "connect", "disconnect":
-			return true
+			keep = true
 		}
 	}
 
-	// Log dropped event for debugging (optional, but helpful if user reports issues)
-	// log.Printf("Dropping event: type=%s action=%s", event.Type, event.Action)
-	return false
+	if keep {
+		log.Printf("Event ALLOWED: type=%s action=%s", event.Type, event.Action)
+	} else {
+		// Log dropped events at least once to see what we are missing
+		log.Printf("Event BLOCKED: type=%s action=%s", event.Type, event.Action)
+	}
+
+	return keep
 }
