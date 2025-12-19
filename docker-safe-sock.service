@@ -1,0 +1,21 @@
+[Unit]
+Description=Docker Safe Sock Proxy
+After=docker.service network.target
+Requires=docker.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/docker-safe-sock
+RuntimeDirectory=docker-safe-sock
+ExecStart=/usr/local/bin/docker-safe-sock
+Restart=always
+RestartSec=5
+User=nobody
+Group=docker
+# Security hardening
+ProtectSystem=full
+ProtectHome=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
