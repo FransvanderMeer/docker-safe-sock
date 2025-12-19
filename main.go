@@ -312,13 +312,27 @@ func shouldKeepEvent(line []byte) bool {
 		return false // Drop malformed json
 	}
 
-	if event.Type != "container" {
-		return false
+	// Check for container events
+	if event.Type == "container" {
+		switch event.Action {
+		case "start", "die", "pause", "unpause", "create", "destroy", "rename", "update":
+			return true
+		}
+		// health_status: healthy/unhealthy is a colon separated action
+		if strings.HasPrefix(event.Action, "health_status") {
+			return true
+		}
 	}
 
-	switch event.Action {
-	case "start", "die", "pause", "unpause", "health_status", "create", "destroy":
-		return true
+	// Check for network events (Traefik watches these too)
+	if event.Type == "network" {
+		switch event.Action {
+		case "create", "destroy", "connect", "disconnect":
+			return true
+		}
 	}
+
+	// Log dropped event for debugging (optional, but helpful if user reports issues)
+	// log.Printf("Dropping event: type=%s action=%s", event.Type, event.Action)
 	return false
 }
