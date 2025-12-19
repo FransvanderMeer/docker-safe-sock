@@ -29,7 +29,7 @@ Mounting `/var/run/docker.sock` into a container is a security risk. If that con
 Requirements: Go 1.25+
 
 ```bash
-git clone https://github.com/frans/docker-safe-sock.git
+git clone git@github.com:FransvanderMeer/docker-safe-sock.git
 cd docker-safe-sock
 go build -o docker-safe-sock .
 ```
@@ -51,16 +51,17 @@ This will:
 
 The service is configured via `/etc/default/docker-safe-sock`.
 
-### Environment Variables
+### Environment Variables & Flags
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DSS_ADDR` | Address(es) to listen on (comma separated). | `127.0.0.1:2375` |
-| `DSS_SOCKET` | Path to the real Docker socket. | `/var/run/docker.sock` |
+| Flag | Env Variable | Description | Default |
+|------|--------------|-------------|---------|
+| `-addr` | `DSS_ADDR` | TCP Address(es) to listen on (comma separated). | `127.0.0.1:2375` (if no socket set) |
+| `-socket` | `DSS_SOCKET` | Path to the REAL Docker socket to proxy to. | `/var/run/docker.sock` |
+| `-safe-socket` | `DSS_SAFE_SOCKET` | Path to create the safe Unix socket listener. | *(empty)* |
 
 ### Listening on Docker Bridges (`auto:bridge`)
 
-If you want the proxy to be accessible from inside Docker containers without exposing it to the entire LAN, you can use the `auto:bridge` keyword.
+If you want the proxy to be accessible from inside Docker containers via TCP without exposing it to the entire LAN, you can use the `auto:bridge` keyword.
 
 ```bash
 # Listen on localhost AND all Docker bridge interfaces
@@ -73,7 +74,7 @@ This will automatically find all network interfaces starting with `docker` or `b
 
 Once running, point Traefik to the proxy instead of mounting the socket.
 
-**Docker Compose Example:**
+**Docker Compose Example (TCP):**
 
 ```yaml
 services:
@@ -82,8 +83,6 @@ services:
     command:
       # Use TCP endpoint instead of unix socket
       - "--providers.docker.endpoint=tcp://host.docker.internal:2375"
-      # Or if running safe-sock in a container:
-      # - "--providers.docker.endpoint=tcp://safe-sock:2375"
       - "--api.insecure=true"
     ports:
       - "80:80"
@@ -92,11 +91,29 @@ services:
       - "host.docker.internal:host-gateway"
 ```
 
+**Docker Compose Example (Safe Socket):**
+
+If you mapped the safe socket to `/var/run/docker-safe.sock`:
+
+```yaml
+services:
+  traefik:
+    image: traefik:v3.0
+    volumes:
+      - /var/run/docker-safe.sock:/var/run/docker.sock # Mount the SAFE socket
+    command:
+      - "--providers.docker.endpoint=unix:///var/run/docker.sock"
+```
+
 ## Manual Usage
 
 Run the binary directly:
 ```bash
-./docker-safe-sock -addr :2375 -socket /var/run/docker.sock
+# Listen on TCP
+./docker-safe-sock -addr :2375
+
+# Listen on Unix Socket
+./docker-safe-sock -safe-socket /var/run/docker-safe.sock
 ```
 
 ## Security Note
