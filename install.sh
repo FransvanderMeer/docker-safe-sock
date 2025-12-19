@@ -17,6 +17,18 @@ fi
 
 go build -o docker-safe-sock .
 
+echo "Creating docker-safe user and group..."
+if ! getent group docker-safe >/dev/null; then
+  groupadd --system docker-safe
+fi
+
+if ! getent passwd docker-safe >/dev/null; then
+  useradd --system --gid docker-safe --no-create-home --home-dir /run/docker-safe --shell /usr/sbin/nologin docker-safe
+fi
+
+echo "Adding docker-safe user to docker group..."
+usermod -aG docker docker-safe
+
 echo "Installing binary to /usr/local/bin/..."
 cp docker-safe-sock /usr/local/bin/
 chmod +x /usr/local/bin/docker-safe-sock
@@ -30,15 +42,13 @@ if [ ! -f /etc/default/docker-safe-sock ]; then
 # Docker Safe Sock Configuration
 
 # Address to listen on (comma separated)
-# To listen on multiple IPs: DSS_ADDR=127.0.0.1:2375,192.168.1.5:2375
-# To listen on all Docker bridges: DSS_ADDR=auto:bridge
-# To listen on localhost AND bridges: DSS_ADDR=127.0.0.1:2375,auto:bridge
-# To listen on localhost AND bridges: DSS_ADDR=127.0.0.1:2375,auto:bridge
-DSS_ADDR=127.0.0.1:2375
+# To listen on localhost TCP (for legacy reasons): DSS_ADDR=127.0.0.1:2375
+# Leave empty to disable TCP listening (Recommended for unix-socket only)
+DSS_ADDR=
 
-# Path to create safe Unix socket (optional, for local non-root usage)
-# Creates /run/docker-safe-sock/docker-safe.sock
-DSS_SAFE_SOCKET=/run/docker-safe-sock/docker-safe.sock
+# Path to create safe Unix socket
+# This must match a path inside the RuntimeDirectory (e.g. /run/docker-safe/)
+DSS_SAFE_SOCKET=/run/docker-safe/docker.sock
 
 # Path to Docker socket
 DSS_SOCKET=/var/run/docker.sock

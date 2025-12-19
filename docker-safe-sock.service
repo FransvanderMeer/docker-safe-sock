@@ -6,12 +6,12 @@ Requires=docker.service
 [Service]
 Type=simple
 EnvironmentFile=-/etc/default/docker-safe-sock
-RuntimeDirectory=docker-safe-sock
+RuntimeDirectory=docker-safe
 ExecStart=/usr/local/bin/docker-safe-sock
 Restart=always
 RestartSec=5
-User=nobody
-Group=docker
+User=docker-safe
+Group=docker-safe
 # Security hardening
 ProtectSystem=full
 ProtectHome=true
