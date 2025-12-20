@@ -257,12 +257,13 @@ func modifyResponse(resp *http.Response) error {
 	if strings.Contains(path, "/events") {
 		// Create a pipe to filter the stream
 		pr, pw := io.Pipe()
+		originalBody := resp.Body
 
 		go func() {
-			defer resp.Body.Close()
+			defer originalBody.Close()
 			defer pw.Close()
 
-			decoder := json.NewDecoder(resp.Body)
+			decoder := json.NewDecoder(originalBody)
 			for {
 				var raw json.RawMessage
 				if err := decoder.Decode(&raw); err != nil {
