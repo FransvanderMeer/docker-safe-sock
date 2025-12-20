@@ -24,6 +24,7 @@ var (
 	safeSocketPath = flag.String("safe-socket", "", "Path to create safe Unix socket. (or DSS_SAFE_SOCKET env)")
 	// Allowed paths regex
 	allowedPaths = regexp.MustCompile(`^/(v[\d\.]+/)??(version|_ping|events|containers/json|containers/[a-zA-Z0-9_.-]+/json)$`)
+	verbose      = flag.Bool("v", false, "Enable verbose logging of allowed/blocked events (or DSS_VERBOSE env)")
 )
 
 func main() {
@@ -178,6 +179,13 @@ func parseConfig() {
 			*socketPath = "/var/run/docker.sock"
 		}
 	}
+
+	if !*verbose {
+		env := os.Getenv("DSS_VERBOSE")
+		if env == "true" || env == "1" {
+			*verbose = true
+		}
+	}
 }
 
 // getDockerBridgeAddrs finds IPs of interfaces starting with 'docker' or 'br-'
@@ -265,7 +273,9 @@ func modifyResponse(resp *http.Response) error {
 				}
 
 				if shouldKeepEvent(raw) {
-					log.Printf("DEBUG: Writing event to downstream: %s", string(raw))
+					if *verbose {
+						log.Printf("DEBUG: Writing event to downstream: %s", string(raw))
+					}
 					if _, err := pw.Write(append(raw, '\n')); err != nil {
 						return // Downstream closed
 					}
@@ -347,11 +357,13 @@ func shouldKeepEvent(line []byte) bool {
 		}
 	}
 
-	if keep {
-		log.Printf("Event ALLOWED: type=%s action=%s", event.Type, event.Action)
-	} else {
-		// Log dropped events at least once to see what we are missing
-		log.Printf("Event BLOCKED: type=%s action=%s", event.Type, event.Action)
+	if *verbose {
+		if keep {
+			log.Printf("Event ALLOWED: type=%s action=%s", event.Type, event.Action)
+		} else {
+			// Log dropped events at least once to see what we are missing
+			log.Printf("Event BLOCKED: type=%s action=%s", event.Type, event.Action)
+		}
 	}
 
 	return keep
