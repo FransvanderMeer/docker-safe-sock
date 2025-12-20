@@ -58,6 +58,7 @@ The service is configured via `/etc/default/docker-safe-sock`.
 | `-addr` | `DSS_ADDR` | TCP Address(es) to listen on (comma separated). | `127.0.0.1:2375` (if no socket set) |
 | `-socket` | `DSS_SOCKET` | Path to the REAL Docker socket to proxy to. | `/var/run/docker.sock` |
 | `-safe-socket` | `DSS_SAFE_SOCKET` | Path to create the safe Unix socket listener. | *(empty)* |
+| `-v` | `DSS_VERBOSE` | Enable verbose logging of allowed/blocked events. | `false` |
 
 ### Listening on Docker Bridges (`auto:bridge`)
 
